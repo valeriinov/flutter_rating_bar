@@ -55,6 +55,7 @@ class RatingBar extends StatefulWidget {
     this.tapOnlyMode = false,
     this.updateOnDrag = false,
     this.wrapAlignment = WrapAlignment.start,
+    this.includeOuterPadding = true,
     super.key,
   })  : _itemBuilder = null,
         _ratingWidget = ratingWidget;
@@ -83,6 +84,7 @@ class RatingBar extends StatefulWidget {
     this.tapOnlyMode = false,
     this.updateOnDrag = false,
     this.wrapAlignment = WrapAlignment.start,
+    this.includeOuterPadding = true,
     super.key,
   })  : _itemBuilder = itemBuilder,
         _ratingWidget = null;
@@ -188,6 +190,12 @@ class RatingBar extends StatefulWidget {
   /// Defaults to [WrapAlignment.start].
   final WrapAlignment wrapAlignment;
 
+  /// Determines whether to apply [itemPadding] to the first and last
+  /// rating item along the main axis.
+  ///
+  /// Default is true.
+  final bool includeOuterPadding;
+
   final IndexedWidgetBuilder? _itemBuilder;
   final RatingWidget? _ratingWidget;
 
@@ -203,6 +211,8 @@ class _RatingBarState extends State<RatingBar> {
   late double _minRating;
   late double _maxRating;
   late final ValueNotifier<bool> _glow;
+
+  late EdgeInsets _resolvedItemPadding;
 
   @override
   void initState() {
@@ -234,6 +244,7 @@ class _RatingBarState extends State<RatingBar> {
     final textDirection = widget.textDirection ?? Directionality.of(context);
     _isRTL = textDirection == TextDirection.rtl;
     iconRating = 0.0;
+    _resolvedItemPadding = widget.itemPadding.resolve(textDirection);
 
     return Material(
       color: Colors.transparent,
@@ -326,7 +337,7 @@ class _RatingBarState extends State<RatingBar> {
         onVerticalDragEnd: _isHorizontal ? null : _onDragEnd,
         onVerticalDragUpdate: _isHorizontal ? null : _onDragUpdate,
         child: Padding(
-          padding: widget.itemPadding,
+          padding: _getItemPadding(index),
           child: ValueListenableBuilder<bool>(
             valueListenable: _glow,
             builder: (context, glow, child) {
@@ -362,6 +373,43 @@ class _RatingBarState extends State<RatingBar> {
   }
 
   bool get _isHorizontal => widget.direction == Axis.horizontal;
+
+  EdgeInsets _getItemPadding(int index) {
+    if (widget.includeOuterPadding) {
+      return _resolvedItemPadding;
+    }
+
+    if (widget.itemCount <= 1) {
+      return _resolvedItemPadding;
+    }
+
+    if (widget.direction == Axis.horizontal) {
+      if (!_isRTL) {
+        if (index == 0) {
+          return _resolvedItemPadding.copyWith(left: 0);
+        }
+        if (index == widget.itemCount - 1) {
+          return _resolvedItemPadding.copyWith(right: 0);
+        }
+      } else {
+        if (index == 0) {
+          return _resolvedItemPadding.copyWith(right: 0);
+        }
+        if (index == widget.itemCount - 1) {
+          return _resolvedItemPadding.copyWith(left: 0);
+        }
+      }
+    } else {
+      if (index == 0) {
+        return _resolvedItemPadding.copyWith(top: 0);
+      }
+      if (index == widget.itemCount - 1) {
+        return _resolvedItemPadding.copyWith(bottom: 0);
+      }
+    }
+
+    return _resolvedItemPadding;
+  }
 
   void _onDragUpdate(DragUpdateDetails dragDetails) {
     if (!widget.tapOnlyMode) {

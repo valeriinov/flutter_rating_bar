@@ -18,6 +18,7 @@ class RatingBarIndicator extends StatefulWidget {
     this.itemSize = 40.0,
     this.physics = const NeverScrollableScrollPhysics(),
     this.rating = 0.0,
+    this.includeOuterPadding = true,
     super.key,
   });
 
@@ -52,6 +53,12 @@ class RatingBarIndicator extends StatefulWidget {
   /// Default is 0.0
   final double rating;
 
+  /// Determines whether to apply [itemPadding] to the first and last
+  /// rating item along the main axis.
+  ///
+  /// Default is true.
+  final bool includeOuterPadding;
+
   @override
   State<RatingBarIndicator> createState() => _RatingBarIndicatorState();
 }
@@ -60,6 +67,8 @@ class _RatingBarIndicatorState extends State<RatingBarIndicator> {
   double _ratingFraction = 0;
   int _ratingNumber = 0;
   bool _isRTL = false;
+
+  late EdgeInsets _resolvedItemPadding;
 
   @override
   void initState() {
@@ -74,6 +83,8 @@ class _RatingBarIndicatorState extends State<RatingBarIndicator> {
     _isRTL = textDirection == TextDirection.rtl;
     _ratingNumber = widget.rating.truncate() + 1;
     _ratingFraction = widget.rating - _ratingNumber + 1;
+    _resolvedItemPadding = widget.itemPadding;
+
     return SingleChildScrollView(
       scrollDirection: widget.direction,
       physics: widget.physics,
@@ -113,7 +124,7 @@ class _RatingBarIndicatorState extends State<RatingBarIndicator> {
 
   Widget _buildItems(int index) {
     return Padding(
-      padding: widget.itemPadding,
+      padding: _getItemPadding(index),
       child: SizedBox(
         width: widget.itemSize,
         height: widget.itemSize,
@@ -155,6 +166,43 @@ class _RatingBarIndicatorState extends State<RatingBarIndicator> {
         ),
       ),
     );
+  }
+
+  EdgeInsets _getItemPadding(int index) {
+    if (widget.includeOuterPadding) {
+      return _resolvedItemPadding;
+    }
+
+    if (widget.itemCount <= 1) {
+      return _resolvedItemPadding;
+    }
+
+    if (widget.direction == Axis.horizontal) {
+      if (!_isRTL) {
+        if (index == 0) {
+          return _resolvedItemPadding.copyWith(left: 0);
+        }
+        if (index == widget.itemCount - 1) {
+          return _resolvedItemPadding.copyWith(right: 0);
+        }
+      } else {
+        if (index == 0) {
+          return _resolvedItemPadding.copyWith(right: 0);
+        }
+        if (index == widget.itemCount - 1) {
+          return _resolvedItemPadding.copyWith(left: 0);
+        }
+      }
+    } else {
+      if (index == 0) {
+        return _resolvedItemPadding.copyWith(top: 0);
+      }
+      if (index == widget.itemCount - 1) {
+        return _resolvedItemPadding.copyWith(bottom: 0);
+      }
+    }
+
+    return _resolvedItemPadding;
   }
 }
 
