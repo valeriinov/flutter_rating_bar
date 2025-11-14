@@ -192,12 +192,15 @@ class RatingBar extends StatefulWidget {
   /// Defaults to [WrapAlignment.start].
   final WrapAlignment wrapAlignment;
 
+  /// {@template flutterRatingBar.includeOuterPadding}
   /// Determines whether to apply [itemPadding] to the first and last
   /// rating item along the main axis.
   ///
   /// Default is true.
+  /// {@endtemplate}
   final bool includeOuterPadding;
 
+  /// {@template flutterRatingBar.useAvailableSpace}
   /// If set to true, rating items will be spaced to fill the available
   /// space along the main axis, based on the incoming layout constraints.
   ///
@@ -205,6 +208,7 @@ class RatingBar extends StatefulWidget {
   /// automatically. [includeOuterPadding] is still applied.
   ///
   /// Default is false.
+  /// {@endtemplate}
   final bool useAvailableSpace;
 
   final IndexedWidgetBuilder? _itemBuilder;

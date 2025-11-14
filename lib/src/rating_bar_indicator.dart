@@ -54,19 +54,10 @@ class RatingBarIndicator extends StatefulWidget {
   /// Default is 0.0
   final double rating;
 
-  /// Determines whether to apply [itemPadding] to the first and last
-  /// rating item along the main axis.
-  ///
-  /// Default is true.
+  /// {@macro flutterRatingBar.includeOuterPadding}
   final bool includeOuterPadding;
 
-  /// If set to true, rating items will be spaced to fill the available
-  /// space along the main axis, based on the incoming layout constraints.
-  ///
-  /// When enabled, [itemPadding] is ignored and spacing is calculated
-  /// automatically. [includeOuterPadding] is still applied.
-  ///
-  /// Default is false.
+  /// {@macro flutterRatingBar.useAvailableSpace}
   final bool useAvailableSpace;
 
   @override
