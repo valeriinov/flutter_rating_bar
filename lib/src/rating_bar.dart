@@ -56,6 +56,7 @@ class RatingBar extends StatefulWidget {
     this.updateOnDrag = false,
     this.wrapAlignment = WrapAlignment.start,
     this.includeOuterPadding = true,
+    this.useAvailableSpace = false,
     super.key,
   })  : _itemBuilder = null,
         _ratingWidget = ratingWidget;
@@ -85,6 +86,7 @@ class RatingBar extends StatefulWidget {
     this.updateOnDrag = false,
     this.wrapAlignment = WrapAlignment.start,
     this.includeOuterPadding = true,
+    this.useAvailableSpace = false,
     super.key,
   })  : _itemBuilder = itemBuilder,
         _ratingWidget = null;
@@ -196,6 +198,15 @@ class RatingBar extends StatefulWidget {
   /// Default is true.
   final bool includeOuterPadding;
 
+  /// If set to true, rating items will be spaced to fill the available
+  /// space along the main axis, based on the incoming layout constraints.
+  ///
+  /// When enabled, [itemPadding] is ignored and spacing is calculated
+  /// automatically. [includeOuterPadding] is still applied.
+  ///
+  /// Default is false.
+  final bool useAvailableSpace;
+
   final IndexedWidgetBuilder? _itemBuilder;
   final RatingWidget? _ratingWidget;
 
@@ -244,18 +255,26 @@ class _RatingBarState extends State<RatingBar> {
     final textDirection = widget.textDirection ?? Directionality.of(context);
     _isRTL = textDirection == TextDirection.rtl;
     iconRating = 0.0;
-    _resolvedItemPadding = widget.itemPadding.resolve(textDirection);
 
     return Material(
       color: Colors.transparent,
-      child: Wrap(
-        alignment: widget.wrapAlignment,
-        textDirection: textDirection,
-        direction: widget.direction,
-        children: List.generate(
-          widget.itemCount,
-          (index) => _buildRating(context, index),
-        ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          _resolvedItemPadding = _resolveItemPadding(
+            constraints: constraints,
+            textDirection: textDirection,
+          );
+
+          return Wrap(
+            alignment: widget.wrapAlignment,
+            textDirection: textDirection,
+            direction: widget.direction,
+            children: List.generate(
+              widget.itemCount,
+              (index) => _buildRating(context, index),
+            ),
+          );
+        },
       ),
     );
   }
@@ -411,6 +430,60 @@ class _RatingBarState extends State<RatingBar> {
     return _resolvedItemPadding;
   }
 
+  EdgeInsets _resolveItemPadding({
+    required BoxConstraints constraints,
+    required TextDirection textDirection,
+  }) {
+    if (!widget.useAvailableSpace) {
+      return widget.itemPadding.resolve(textDirection);
+    }
+
+    final mainExtent = widget.direction == Axis.horizontal
+        ? constraints.maxWidth
+        : constraints.maxHeight;
+
+    if (mainExtent.isInfinite) {
+      return widget.itemPadding.resolve(textDirection);
+    }
+
+    if (widget.itemCount <= 0) {
+      return widget.itemPadding.resolve(textDirection);
+    }
+
+    final itemsExtent = widget.itemSize * widget.itemCount;
+    final freeExtent = mainExtent - itemsExtent;
+
+    if (freeExtent <= 0) {
+      return widget.itemPadding.resolve(textDirection);
+    }
+
+    var totalPaddingSlots = 0;
+
+    if (widget.itemCount == 1) {
+      totalPaddingSlots = 2;
+    } else {
+      totalPaddingSlots = widget.includeOuterPadding
+          ? 2 * widget.itemCount
+          : 2 * (widget.itemCount - 1);
+    }
+
+    if (totalPaddingSlots <= 0) {
+      return widget.itemPadding.resolve(textDirection);
+    }
+
+    final perPadding = freeExtent / totalPaddingSlots;
+
+    if (perPadding <= 0) {
+      return widget.itemPadding.resolve(textDirection);
+    }
+
+    final basePadding = widget.direction == Axis.horizontal
+        ? EdgeInsets.symmetric(horizontal: perPadding)
+        : EdgeInsets.symmetric(vertical: perPadding);
+
+    return basePadding.resolve(textDirection);
+  }
+
   void _onDragUpdate(DragUpdateDetails dragDetails) {
     if (!widget.tapOnlyMode) {
       final box = context.findRenderObject() as RenderBox?;
@@ -419,9 +492,9 @@ class _RatingBarState extends State<RatingBar> {
       final pos = box.globalToLocal(dragDetails.globalPosition);
       double i;
       if (widget.direction == Axis.horizontal) {
-        i = pos.dx / (widget.itemSize + widget.itemPadding.horizontal);
+        i = pos.dx / (widget.itemSize + _resolvedItemPadding.horizontal);
       } else {
-        i = pos.dy / (widget.itemSize + widget.itemPadding.vertical);
+        i = pos.dy / (widget.itemSize + _resolvedItemPadding.vertical);
       }
       var currentRating = widget.allowHalfRating ? i : i.round().toDouble();
       if (currentRating > widget.itemCount) {

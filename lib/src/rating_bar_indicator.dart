@@ -19,6 +19,7 @@ class RatingBarIndicator extends StatefulWidget {
     this.physics = const NeverScrollableScrollPhysics(),
     this.rating = 0.0,
     this.includeOuterPadding = true,
+    this.useAvailableSpace = false,
     super.key,
   });
 
@@ -59,6 +60,15 @@ class RatingBarIndicator extends StatefulWidget {
   /// Default is true.
   final bool includeOuterPadding;
 
+  /// If set to true, rating items will be spaced to fill the available
+  /// space along the main axis, based on the incoming layout constraints.
+  ///
+  /// When enabled, [itemPadding] is ignored and spacing is calculated
+  /// automatically. [includeOuterPadding] is still applied.
+  ///
+  /// Default is false.
+  final bool useAvailableSpace;
+
   @override
   State<RatingBarIndicator> createState() => _RatingBarIndicatorState();
 }
@@ -83,22 +93,42 @@ class _RatingBarIndicatorState extends State<RatingBarIndicator> {
     _isRTL = textDirection == TextDirection.rtl;
     _ratingNumber = widget.rating.truncate() + 1;
     _ratingFraction = widget.rating - _ratingNumber + 1;
-    _resolvedItemPadding = widget.itemPadding;
 
-    return SingleChildScrollView(
-      scrollDirection: widget.direction,
-      physics: widget.physics,
-      child: widget.direction == Axis.horizontal
-          ? Row(
-              mainAxisSize: MainAxisSize.min,
-              textDirection: textDirection,
-              children: _children,
-            )
-          : Column(
-              mainAxisSize: MainAxisSize.min,
-              textDirection: textDirection,
-              children: _children,
-            ),
+    if (!widget.useAvailableSpace) {
+      _resolvedItemPadding = widget.itemPadding;
+      return SingleChildScrollView(
+        scrollDirection: widget.direction,
+        physics: widget.physics,
+        child: widget.direction == Axis.horizontal
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                textDirection: textDirection,
+                children: _children,
+              )
+            : Column(
+                mainAxisSize: MainAxisSize.min,
+                textDirection: textDirection,
+                children: _children,
+              ),
+      );
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        _resolvedItemPadding = _resolveItemPadding(constraints);
+
+        return widget.direction == Axis.horizontal
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                textDirection: textDirection,
+                children: _children,
+              )
+            : Column(
+                mainAxisSize: MainAxisSize.min,
+                textDirection: textDirection,
+                children: _children,
+              );
+      },
     );
   }
 
@@ -203,6 +233,53 @@ class _RatingBarIndicatorState extends State<RatingBarIndicator> {
     }
 
     return _resolvedItemPadding;
+  }
+
+  EdgeInsets _resolveItemPadding(BoxConstraints constraints) {
+    final mainExtent = widget.direction == Axis.horizontal
+        ? constraints.maxWidth
+        : constraints.maxHeight;
+
+    if (mainExtent.isInfinite) {
+      return widget.itemPadding;
+    }
+
+    if (widget.itemCount <= 0) {
+      return widget.itemPadding;
+    }
+
+    final itemsExtent = widget.itemSize * widget.itemCount;
+    final freeExtent = mainExtent - itemsExtent;
+
+    if (freeExtent <= 0) {
+      return widget.itemPadding;
+    }
+
+    var totalPaddingSlots = 0;
+
+    if (widget.itemCount == 1) {
+      totalPaddingSlots = 2;
+    } else {
+      totalPaddingSlots = widget.includeOuterPadding
+          ? 2 * widget.itemCount
+          : 2 * (widget.itemCount - 1);
+    }
+
+    if (totalPaddingSlots <= 0) {
+      return widget.itemPadding;
+    }
+
+    final perPadding = freeExtent / totalPaddingSlots;
+
+    if (perPadding <= 0) {
+      return widget.itemPadding;
+    }
+
+    if (widget.direction == Axis.horizontal) {
+      return EdgeInsets.symmetric(horizontal: perPadding);
+    }
+
+    return EdgeInsets.symmetric(vertical: perPadding);
   }
 }
 
