@@ -55,6 +55,8 @@ class RatingBar extends StatefulWidget {
     this.tapOnlyMode = false,
     this.updateOnDrag = false,
     this.wrapAlignment = WrapAlignment.start,
+    this.includeOuterPadding = true,
+    this.useAvailableSpace = false,
     super.key,
   })  : _itemBuilder = null,
         _ratingWidget = ratingWidget;
@@ -83,6 +85,8 @@ class RatingBar extends StatefulWidget {
     this.tapOnlyMode = false,
     this.updateOnDrag = false,
     this.wrapAlignment = WrapAlignment.start,
+    this.includeOuterPadding = true,
+    this.useAvailableSpace = false,
     super.key,
   })  : _itemBuilder = itemBuilder,
         _ratingWidget = null;
@@ -188,6 +192,25 @@ class RatingBar extends StatefulWidget {
   /// Defaults to [WrapAlignment.start].
   final WrapAlignment wrapAlignment;
 
+  /// {@template flutterRatingBar.includeOuterPadding}
+  /// Determines whether to apply [itemPadding] to the first and last
+  /// rating item along the main axis.
+  ///
+  /// Default is true.
+  /// {@endtemplate}
+  final bool includeOuterPadding;
+
+  /// {@template flutterRatingBar.useAvailableSpace}
+  /// If set to true, rating items will be spaced to fill the available
+  /// space along the main axis, based on the incoming layout constraints.
+  ///
+  /// When enabled, [itemPadding] is ignored and spacing is calculated
+  /// automatically. [includeOuterPadding] is still applied.
+  ///
+  /// Default is false.
+  /// {@endtemplate}
+  final bool useAvailableSpace;
+
   final IndexedWidgetBuilder? _itemBuilder;
   final RatingWidget? _ratingWidget;
 
@@ -204,6 +227,8 @@ class _RatingBarState extends State<RatingBar> {
   late double _maxRating;
   late final ValueNotifier<bool> _glow;
 
+  late final _PaddingResolver _paddingResolver;
+
   @override
   void initState() {
     super.initState();
@@ -211,6 +236,7 @@ class _RatingBarState extends State<RatingBar> {
     _minRating = widget.minRating;
     _maxRating = widget.maxRating ?? widget.itemCount.toDouble();
     _rating = widget.initialRating;
+    _paddingResolver = _createPaddingResolver();
   }
 
   @override
@@ -221,6 +247,8 @@ class _RatingBarState extends State<RatingBar> {
     }
     _minRating = widget.minRating;
     _maxRating = widget.maxRating ?? widget.itemCount.toDouble();
+
+    _updatePaddingResolverConfig();
   }
 
   @override
@@ -237,14 +265,23 @@ class _RatingBarState extends State<RatingBar> {
 
     return Material(
       color: Colors.transparent,
-      child: Wrap(
-        alignment: widget.wrapAlignment,
-        textDirection: textDirection,
-        direction: widget.direction,
-        children: List.generate(
-          widget.itemCount,
-          (index) => _buildRating(context, index),
-        ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          _paddingResolver.recalculateResolvedPadding(
+            constraints: constraints,
+            textDirection: textDirection,
+          );
+
+          return Wrap(
+            alignment: widget.wrapAlignment,
+            textDirection: textDirection,
+            direction: widget.direction,
+            children: List.generate(
+              widget.itemCount,
+              (index) => _buildRating(context, index),
+            ),
+          );
+        },
       ),
     );
   }
@@ -326,7 +363,7 @@ class _RatingBarState extends State<RatingBar> {
         onVerticalDragEnd: _isHorizontal ? null : _onDragEnd,
         onVerticalDragUpdate: _isHorizontal ? null : _onDragUpdate,
         child: Padding(
-          padding: widget.itemPadding,
+          padding: _getItemPadding(index),
           child: ValueListenableBuilder<bool>(
             valueListenable: _glow,
             builder: (context, glow, child) {
@@ -363,17 +400,26 @@ class _RatingBarState extends State<RatingBar> {
 
   bool get _isHorizontal => widget.direction == Axis.horizontal;
 
+  EdgeInsets _getItemPadding(int index) {
+    return _paddingResolver.getItemPaddingForIndex(
+      index: index,
+      isRTL: _isRTL,
+    );
+  }
+
   void _onDragUpdate(DragUpdateDetails dragDetails) {
     if (!widget.tapOnlyMode) {
       final box = context.findRenderObject() as RenderBox?;
       if (box == null) return;
 
       final pos = box.globalToLocal(dragDetails.globalPosition);
+      final resolvedItemPadding = _paddingResolver.resolvedItemPadding;
+
       double i;
       if (widget.direction == Axis.horizontal) {
-        i = pos.dx / (widget.itemSize + widget.itemPadding.horizontal);
+        i = pos.dx / (widget.itemSize + resolvedItemPadding.horizontal);
       } else {
-        i = pos.dy / (widget.itemSize + widget.itemPadding.vertical);
+        i = pos.dy / (widget.itemSize + resolvedItemPadding.vertical);
       }
       var currentRating = widget.allowHalfRating ? i : i.round().toDouble();
       if (currentRating > widget.itemCount) {
@@ -400,6 +446,28 @@ class _RatingBarState extends State<RatingBar> {
     _glow.value = false;
     widget.onRatingUpdate(iconRating);
     iconRating = 0.0;
+  }
+
+  _PaddingResolver _createPaddingResolver() {
+    return _PaddingResolver(
+      direction: widget.direction,
+      itemCount: widget.itemCount,
+      includeOuterPadding: widget.includeOuterPadding,
+      itemSize: widget.itemSize,
+      useAvailableSpace: widget.useAvailableSpace,
+      itemPadding: widget.itemPadding,
+    );
+  }
+
+  void _updatePaddingResolverConfig() {
+    _paddingResolver.updateConfig(
+      direction: widget.direction,
+      itemCount: widget.itemCount,
+      includeOuterPadding: widget.includeOuterPadding,
+      itemSize: widget.itemSize,
+      useAvailableSpace: widget.useAvailableSpace,
+      itemPadding: widget.itemPadding,
+    );
   }
 }
 
@@ -506,5 +574,199 @@ class _NoRatingWidget extends StatelessWidget {
             : child,
       ),
     );
+  }
+}
+
+class _PaddingResolver {
+  _PaddingResolver({
+    required Axis direction,
+    required int itemCount,
+    required bool includeOuterPadding,
+    required double itemSize,
+    required bool useAvailableSpace,
+    required EdgeInsetsGeometry itemPadding,
+  })  : _direction = direction,
+        _itemCount = itemCount,
+        _includeOuterPadding = includeOuterPadding,
+        _itemSize = itemSize,
+        _useAvailableSpace = useAvailableSpace,
+        _itemPadding = itemPadding;
+
+  Axis _direction;
+  int _itemCount;
+  bool _includeOuterPadding;
+  double _itemSize;
+  bool _useAvailableSpace;
+  EdgeInsetsGeometry _itemPadding;
+
+  EdgeInsets resolvedItemPadding = EdgeInsets.zero;
+
+  void updateConfig({
+    required Axis direction,
+    required int itemCount,
+    required bool includeOuterPadding,
+    required double itemSize,
+    required bool useAvailableSpace,
+    required EdgeInsetsGeometry itemPadding,
+  }) {
+    _direction = direction;
+    _itemCount = itemCount;
+    _includeOuterPadding = includeOuterPadding;
+    _itemSize = itemSize;
+    _useAvailableSpace = useAvailableSpace;
+    _itemPadding = itemPadding;
+  }
+
+  void recalculateResolvedPadding({
+    required BoxConstraints constraints,
+    required TextDirection textDirection,
+  }) {
+    if (!_useAvailableSpace) {
+      _setDefaultPadding(textDirection);
+
+      return;
+    }
+
+    final mainExtent = _getMainExtent(constraints);
+
+    if (_isUnboundedExtent(mainExtent)) {
+      _setDefaultPadding(textDirection);
+
+      return;
+    }
+
+    if (_itemCount <= 0) {
+      _setDefaultPadding(textDirection);
+
+      return;
+    }
+
+    final freeExtent = _calculateFreeExtent(mainExtent);
+
+    if (_isNonPositive(freeExtent)) {
+      _setDefaultPadding(textDirection);
+
+      return;
+    }
+
+    final totalPaddingSlots = _calculateTotalPaddingSlots();
+
+    if (totalPaddingSlots <= 0) {
+      _setDefaultPadding(textDirection);
+
+      return;
+    }
+
+    final perPadding = freeExtent / totalPaddingSlots;
+
+    if (_isNonPositive(perPadding)) {
+      _setDefaultPadding(textDirection);
+
+      return;
+    }
+
+    final basePadding = _createBasePadding(perPadding);
+    resolvedItemPadding = basePadding.resolve(textDirection);
+  }
+
+  EdgeInsets getItemPaddingForIndex({
+    required int index,
+    required bool isRTL,
+  }) {
+    if (_includeOuterPadding) {
+      return resolvedItemPadding;
+    }
+
+    if (_itemCount <= 1) {
+      return resolvedItemPadding;
+    }
+
+    if (_direction == Axis.horizontal) {
+      return isRTL
+          ? _horizontalRtlPadding(index)
+          : _horizontalLtrPadding(index);
+    }
+
+    return _verticalPadding(index);
+  }
+
+  void _setDefaultPadding(TextDirection textDirection) {
+    resolvedItemPadding = _itemPadding.resolve(textDirection);
+  }
+
+  double _getMainExtent(BoxConstraints constraints) {
+    return _direction == Axis.horizontal
+        ? constraints.maxWidth
+        : constraints.maxHeight;
+  }
+
+  bool _isUnboundedExtent(double mainExtent) {
+    return mainExtent.isInfinite;
+  }
+
+  double _calculateFreeExtent(double mainExtent) {
+    final itemsExtent = _itemSize * _itemCount;
+
+    return mainExtent - itemsExtent;
+  }
+
+  bool _isNonPositive(double value) {
+    return value <= 0;
+  }
+
+  int _calculateTotalPaddingSlots() {
+    const bothSidesSlots = 2;
+
+    if (_itemCount == 1) {
+      return bothSidesSlots;
+    }
+
+    if (_includeOuterPadding) {
+      return bothSidesSlots * _itemCount;
+    }
+
+    return bothSidesSlots * (_itemCount - 1);
+  }
+
+  EdgeInsets _createBasePadding(double perPadding) {
+    return _direction == Axis.horizontal
+        ? EdgeInsets.symmetric(horizontal: perPadding)
+        : EdgeInsets.symmetric(vertical: perPadding);
+  }
+
+  EdgeInsets _horizontalLtrPadding(int index) {
+    if (index == 0) {
+      return resolvedItemPadding.copyWith(left: 0);
+    }
+
+    if (index == _itemCount - 1) {
+      return resolvedItemPadding.copyWith(right: 0);
+    }
+
+    return resolvedItemPadding;
+  }
+
+  EdgeInsets _horizontalRtlPadding(int index) {
+    if (index == 0) {
+      return resolvedItemPadding.copyWith(right: 0);
+    }
+
+    if (index == _itemCount - 1) {
+      return resolvedItemPadding.copyWith(left: 0);
+    }
+
+    return resolvedItemPadding;
+  }
+
+  EdgeInsets _verticalPadding(int index) {
+    if (index == 0) {
+      return resolvedItemPadding.copyWith(top: 0);
+    }
+
+    if (index == _itemCount - 1) {
+      return resolvedItemPadding.copyWith(bottom: 0);
+    }
+
+    return resolvedItemPadding;
   }
 }

@@ -18,6 +18,8 @@ class RatingBarIndicator extends StatefulWidget {
     this.itemSize = 40.0,
     this.physics = const NeverScrollableScrollPhysics(),
     this.rating = 0.0,
+    this.includeOuterPadding = true,
+    this.useAvailableSpace = false,
     super.key,
   });
 
@@ -52,6 +54,12 @@ class RatingBarIndicator extends StatefulWidget {
   /// Default is 0.0
   final double rating;
 
+  /// {@macro flutterRatingBar.includeOuterPadding}
+  final bool includeOuterPadding;
+
+  /// {@macro flutterRatingBar.useAvailableSpace}
+  final bool useAvailableSpace;
+
   @override
   State<RatingBarIndicator> createState() => _RatingBarIndicatorState();
 }
@@ -61,11 +69,20 @@ class _RatingBarIndicatorState extends State<RatingBarIndicator> {
   int _ratingNumber = 0;
   bool _isRTL = false;
 
+  late final _PaddingResolver _paddingResolver;
+
   @override
   void initState() {
     super.initState();
     _ratingNumber = widget.rating.truncate() + 1;
     _ratingFraction = widget.rating - _ratingNumber + 1;
+    _paddingResolver = _createPaddingResolver();
+  }
+
+  @override
+  void didUpdateWidget(covariant RatingBarIndicator oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _updatePaddingResolverConfig();
   }
 
   @override
@@ -74,20 +91,46 @@ class _RatingBarIndicatorState extends State<RatingBarIndicator> {
     _isRTL = textDirection == TextDirection.rtl;
     _ratingNumber = widget.rating.truncate() + 1;
     _ratingFraction = widget.rating - _ratingNumber + 1;
-    return SingleChildScrollView(
-      scrollDirection: widget.direction,
-      physics: widget.physics,
-      child: widget.direction == Axis.horizontal
-          ? Row(
-              mainAxisSize: MainAxisSize.min,
-              textDirection: textDirection,
-              children: _children,
-            )
-          : Column(
-              mainAxisSize: MainAxisSize.min,
-              textDirection: textDirection,
-              children: _children,
-            ),
+
+    if (!widget.useAvailableSpace) {
+      _paddingResolver.resolvedItemPadding = widget.itemPadding;
+
+      return SingleChildScrollView(
+        scrollDirection: widget.direction,
+        physics: widget.physics,
+        child: widget.direction == Axis.horizontal
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                textDirection: textDirection,
+                children: _children,
+              )
+            : Column(
+                mainAxisSize: MainAxisSize.min,
+                textDirection: textDirection,
+                children: _children,
+              ),
+      );
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        _paddingResolver.recalculateResolvedPadding(
+          constraints: constraints,
+          textDirection: textDirection,
+        );
+
+        return widget.direction == Axis.horizontal
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                textDirection: textDirection,
+                children: _children,
+              )
+            : Column(
+                mainAxisSize: MainAxisSize.min,
+                textDirection: textDirection,
+                children: _children,
+              );
+      },
     );
   }
 
@@ -113,7 +156,7 @@ class _RatingBarIndicatorState extends State<RatingBarIndicator> {
 
   Widget _buildItems(int index) {
     return Padding(
-      padding: widget.itemPadding,
+      padding: _getItemPadding(index),
       child: SizedBox(
         width: widget.itemSize,
         height: widget.itemSize,
@@ -154,6 +197,35 @@ class _RatingBarIndicatorState extends State<RatingBarIndicator> {
           ],
         ),
       ),
+    );
+  }
+
+  EdgeInsets _getItemPadding(int index) {
+    return _paddingResolver.getItemPaddingForIndex(
+      index: index,
+      isRTL: _isRTL,
+    );
+  }
+
+  _PaddingResolver _createPaddingResolver() {
+    return _PaddingResolver(
+      direction: widget.direction,
+      itemCount: widget.itemCount,
+      includeOuterPadding: widget.includeOuterPadding,
+      itemSize: widget.itemSize,
+      useAvailableSpace: widget.useAvailableSpace,
+      itemPadding: widget.itemPadding,
+    );
+  }
+
+  void _updatePaddingResolverConfig() {
+    _paddingResolver.updateConfig(
+      direction: widget.direction,
+      itemCount: widget.itemCount,
+      includeOuterPadding: widget.includeOuterPadding,
+      itemSize: widget.itemSize,
+      useAvailableSpace: widget.useAvailableSpace,
+      itemPadding: widget.itemPadding,
     );
   }
 }
