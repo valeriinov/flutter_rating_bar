@@ -69,13 +69,20 @@ class _RatingBarIndicatorState extends State<RatingBarIndicator> {
   int _ratingNumber = 0;
   bool _isRTL = false;
 
-  late EdgeInsets _resolvedItemPadding;
+  late final _PaddingResolver _paddingResolver;
 
   @override
   void initState() {
     super.initState();
     _ratingNumber = widget.rating.truncate() + 1;
     _ratingFraction = widget.rating - _ratingNumber + 1;
+    _paddingResolver = _createPaddingResolver();
+  }
+
+  @override
+  void didUpdateWidget(covariant RatingBarIndicator oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _updatePaddingResolverConfig();
   }
 
   @override
@@ -86,7 +93,8 @@ class _RatingBarIndicatorState extends State<RatingBarIndicator> {
     _ratingFraction = widget.rating - _ratingNumber + 1;
 
     if (!widget.useAvailableSpace) {
-      _resolvedItemPadding = widget.itemPadding;
+      _paddingResolver.resolvedItemPadding = widget.itemPadding;
+
       return SingleChildScrollView(
         scrollDirection: widget.direction,
         physics: widget.physics,
@@ -106,7 +114,10 @@ class _RatingBarIndicatorState extends State<RatingBarIndicator> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        _resolvedItemPadding = _resolveItemPadding(constraints);
+        _paddingResolver.recalculateResolvedPadding(
+          constraints: constraints,
+          textDirection: textDirection,
+        );
 
         return widget.direction == Axis.horizontal
             ? Row(
@@ -190,87 +201,32 @@ class _RatingBarIndicatorState extends State<RatingBarIndicator> {
   }
 
   EdgeInsets _getItemPadding(int index) {
-    if (widget.includeOuterPadding) {
-      return _resolvedItemPadding;
-    }
-
-    if (widget.itemCount <= 1) {
-      return _resolvedItemPadding;
-    }
-
-    if (widget.direction == Axis.horizontal) {
-      if (!_isRTL) {
-        if (index == 0) {
-          return _resolvedItemPadding.copyWith(left: 0);
-        }
-        if (index == widget.itemCount - 1) {
-          return _resolvedItemPadding.copyWith(right: 0);
-        }
-      } else {
-        if (index == 0) {
-          return _resolvedItemPadding.copyWith(right: 0);
-        }
-        if (index == widget.itemCount - 1) {
-          return _resolvedItemPadding.copyWith(left: 0);
-        }
-      }
-    } else {
-      if (index == 0) {
-        return _resolvedItemPadding.copyWith(top: 0);
-      }
-      if (index == widget.itemCount - 1) {
-        return _resolvedItemPadding.copyWith(bottom: 0);
-      }
-    }
-
-    return _resolvedItemPadding;
+    return _paddingResolver.getItemPaddingForIndex(
+      index: index,
+      isRTL: _isRTL,
+    );
   }
 
-  EdgeInsets _resolveItemPadding(BoxConstraints constraints) {
-    final mainExtent = widget.direction == Axis.horizontal
-        ? constraints.maxWidth
-        : constraints.maxHeight;
+  _PaddingResolver _createPaddingResolver() {
+    return _PaddingResolver(
+      direction: widget.direction,
+      itemCount: widget.itemCount,
+      includeOuterPadding: widget.includeOuterPadding,
+      itemSize: widget.itemSize,
+      useAvailableSpace: widget.useAvailableSpace,
+      itemPadding: widget.itemPadding,
+    );
+  }
 
-    if (mainExtent.isInfinite) {
-      return widget.itemPadding;
-    }
-
-    if (widget.itemCount <= 0) {
-      return widget.itemPadding;
-    }
-
-    final itemsExtent = widget.itemSize * widget.itemCount;
-    final freeExtent = mainExtent - itemsExtent;
-
-    if (freeExtent <= 0) {
-      return widget.itemPadding;
-    }
-
-    var totalPaddingSlots = 0;
-
-    if (widget.itemCount == 1) {
-      totalPaddingSlots = 2;
-    } else {
-      totalPaddingSlots = widget.includeOuterPadding
-          ? 2 * widget.itemCount
-          : 2 * (widget.itemCount - 1);
-    }
-
-    if (totalPaddingSlots <= 0) {
-      return widget.itemPadding;
-    }
-
-    final perPadding = freeExtent / totalPaddingSlots;
-
-    if (perPadding <= 0) {
-      return widget.itemPadding;
-    }
-
-    if (widget.direction == Axis.horizontal) {
-      return EdgeInsets.symmetric(horizontal: perPadding);
-    }
-
-    return EdgeInsets.symmetric(vertical: perPadding);
+  void _updatePaddingResolverConfig() {
+    _paddingResolver.updateConfig(
+      direction: widget.direction,
+      itemCount: widget.itemCount,
+      includeOuterPadding: widget.includeOuterPadding,
+      itemSize: widget.itemSize,
+      useAvailableSpace: widget.useAvailableSpace,
+      itemPadding: widget.itemPadding,
+    );
   }
 }
 
