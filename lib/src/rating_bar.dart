@@ -272,13 +272,25 @@ class _RatingBarState extends State<RatingBar> {
             textDirection: textDirection,
           );
 
-          return Wrap(
-            alignment: widget.wrapAlignment,
-            textDirection: textDirection,
-            direction: widget.direction,
-            children: List.generate(
-              widget.itemCount,
-              (index) => _buildRating(context, index),
+          return IgnorePointer(
+            ignoring: widget.ignoreGestures,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onHorizontalDragStart: _isHorizontal ? _onDragStart : null,
+              onHorizontalDragEnd: _isHorizontal ? _onDragEnd : null,
+              onHorizontalDragUpdate: _isHorizontal ? _onDragUpdate : null,
+              onVerticalDragStart: _isHorizontal ? null : _onDragStart,
+              onVerticalDragEnd: _isHorizontal ? null : _onDragEnd,
+              onVerticalDragUpdate: _isHorizontal ? null : _onDragUpdate,
+              child: Wrap(
+                alignment: widget.wrapAlignment,
+                textDirection: textDirection,
+                direction: widget.direction,
+                children: List.generate(
+                  widget.itemCount,
+                  (index) => _buildRating(context, index),
+                ),
+              ),
             ),
           );
         },
@@ -337,62 +349,54 @@ class _RatingBarState extends State<RatingBar> {
       iconRating += 1.0;
     }
 
-    return IgnorePointer(
-      ignoring: widget.ignoreGestures,
-      child: GestureDetector(
-        onTapDown: (details) {
-          double value;
-          if (index == 0 && (_rating == 1 || _rating == 0.5)) {
-            value = 0;
-          } else {
-            final tappedPosition = details.localPosition.dx;
-            final tappedOnFirstHalf = tappedPosition <= widget.itemSize / 2;
-            value = index +
-                (tappedOnFirstHalf && widget.allowHalfRating ? 0.5 : 1.0);
-          }
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTapDown: (details) {
+        double value;
+        if (index == 0 && (_rating == 1 || _rating == 0.5)) {
+          value = 0;
+        } else {
+          final tappedPosition = details.localPosition.dx;
+          final tappedOnFirstHalf = tappedPosition <= widget.itemSize / 2;
+          value =
+              index + (tappedOnFirstHalf && widget.allowHalfRating ? 0.5 : 1.0);
+        }
 
-          value = math.max(value, widget.minRating);
-          widget.onRatingUpdate(value);
-          _rating = value;
-          setState(() {});
-        },
-        onHorizontalDragStart: _isHorizontal ? _onDragStart : null,
-        onHorizontalDragEnd: _isHorizontal ? _onDragEnd : null,
-        onHorizontalDragUpdate: _isHorizontal ? _onDragUpdate : null,
-        onVerticalDragStart: _isHorizontal ? null : _onDragStart,
-        onVerticalDragEnd: _isHorizontal ? null : _onDragEnd,
-        onVerticalDragUpdate: _isHorizontal ? null : _onDragUpdate,
-        child: Padding(
-          padding: _getItemPadding(index),
-          child: ValueListenableBuilder<bool>(
-            valueListenable: _glow,
-            builder: (context, glow, child) {
-              if (glow && widget.glow) {
-                final glowColor =
-                    widget.glowColor ?? Theme.of(context).colorScheme.secondary;
-                return DecoratedBox(
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: glowColor.withAlpha(30),
-                        blurRadius: 10,
-                        spreadRadius: widget.glowRadius,
-                      ),
-                      BoxShadow(
-                        color: glowColor.withAlpha(20),
-                        blurRadius: 10,
-                        spreadRadius: widget.glowRadius,
-                      ),
-                    ],
-                  ),
-                  child: child,
-                );
-              }
-              return child!;
-            },
-            child: resolvedRatingWidget,
-          ),
+        value = math.max(value, widget.minRating);
+        widget.onRatingUpdate(value);
+        _rating = value;
+        setState(() {});
+      },
+      child: Padding(
+        padding: _getItemPadding(index),
+        child: ValueListenableBuilder<bool>(
+          valueListenable: _glow,
+          builder: (context, glow, child) {
+            if (glow && widget.glow) {
+              final glowColor =
+                  widget.glowColor ?? Theme.of(context).colorScheme.secondary;
+              return DecoratedBox(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: glowColor.withAlpha(30),
+                      blurRadius: 10,
+                      spreadRadius: widget.glowRadius,
+                    ),
+                    BoxShadow(
+                      color: glowColor.withAlpha(20),
+                      blurRadius: 10,
+                      spreadRadius: widget.glowRadius,
+                    ),
+                  ],
+                ),
+                child: child,
+              );
+            }
+            return child!;
+          },
+          child: resolvedRatingWidget,
         ),
       ),
     );
